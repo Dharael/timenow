@@ -1,0 +1,12 @@
+{
+  "name": "timenow",
+  "version": "1.0.0",
+  "description": "TimeNow — Estación de monitoreo de clima y sismos (RD y el mundo)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

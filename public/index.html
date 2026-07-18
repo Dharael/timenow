@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TimeNow — Clima y Sismos</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23050810' stroke='%233DE0FF' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%233DE0FF'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<div class="stars" aria-hidden="true"></div>
+
+<!-- ══════════ BARRA SUPERIOR ══════════ -->
+<header class="topbar">
+  <button type="button" class="brand" id="btn-home" title="Ir al inicio">
+    <div class="brand-orb"><span class="brand-orb-core"></span></div>
+    <div class="brand-text">
+      <span class="brand-name">TIME<em>NOW</em></span>
+      <span class="brand-sub">ESTACIÓN DE MONITOREO</span>
+    </div>
+  </button>
+
+  <div class="telemetry" id="telemetry">
+    <span class="tele-item"><span class="tele-label">POS</span><span class="tele-val" id="tele-pos">--.-- / --.--</span></span>
+    <span class="tele-item"><span class="tele-label">HORA</span><span class="tele-val" id="tele-time">--:--:--</span></span>
+    <span class="tele-item"><span class="tele-label">SISMICO</span><span class="tele-val" id="tele-seis"><span class="led led-ok"></span> EN CALMA</span></span>
+    <span class="tele-item"><span class="tele-label">ATLANTICO</span><span class="tele-val" id="tele-storm"><span class="led led-ok"></span> --</span></span>
+  </div>
+
+  <div class="search-wrap">
+    <input type="text" id="city-search" class="search-input" placeholder="Buscar ciudad…" autocomplete="off">
+    <button type="button" id="btn-locate" class="btn-locate" title="Usar mi ubicación">◎</button>
+    <div class="search-results" id="search-results"></div>
+  </div>
+</header>
+
+<!-- ══════════ NAVEGACIÓN ══════════ -->
+<nav class="tabs" id="tabs">
+  <button class="tab active" data-view="now">AHORA</button>
+  <button class="tab" data-view="forecast">PRONÓSTICO</button>
+  <button class="tab" data-view="quakes">SISMOS</button>
+  <button class="tab" data-view="storms">CICLONES</button>
+  <button class="tab" data-view="news">NOTICIAS</button>
+  <button class="tab" data-view="alerts">ALERTAS <span class="alert-badge" id="alert-badge" hidden>0</span></button>
+</nav>
+
+<main class="content">
+
+  <!-- ══════════ AHORA ══════════ -->
+  <section class="view active" id="view-now">
+    <div class="now-grid">
+      <div class="panel hero-panel" id="hero-panel">
+        <div class="hero-loc">
+          <span class="hero-city" id="hero-city">Localizando…</span>
+          <span class="hero-coords mono" id="hero-coords"></span>
+        </div>
+        <div class="hero-main">
+          <div class="hero-icon" id="hero-icon"></div>
+          <div class="hero-temp-wrap">
+            <span class="hero-temp" id="hero-temp">--°</span>
+            <span class="hero-cond" id="hero-cond">—</span>
+            <span class="hero-feels mono" id="hero-feels"></span>
+          </div>
+        </div>
+        <div class="hero-minmax mono" id="hero-minmax"></div>
+      </div>
+
+      <div class="panel stat-panel"><span class="stat-label">HUMEDAD</span><span class="stat-big" id="st-hum">--%</span><div class="bar"><div class="bar-fill" id="bar-hum"></div></div></div>
+      <div class="panel stat-panel"><span class="stat-label">VIENTO</span><span class="stat-big" id="st-wind">-- <small>km/h</small></span><span class="stat-sub mono" id="st-wind-dir">—</span></div>
+      <div class="panel stat-panel"><span class="stat-label">ÍNDICE UV</span><span class="stat-big" id="st-uv">--</span><span class="stat-sub" id="st-uv-txt">—</span></div>
+      <div class="panel stat-panel"><span class="stat-label">PRESIÓN</span><span class="stat-big" id="st-pres">---- <small>hPa</small></span><span class="stat-sub mono" id="st-pres-txt">—</span></div>
+      <div class="panel stat-panel"><span class="stat-label">NUBOSIDAD</span><span class="stat-big" id="st-cloud">--%</span><div class="bar"><div class="bar-fill" id="bar-cloud"></div></div></div>
+      <div class="panel stat-panel"><span class="stat-label">SOL</span><span class="stat-sun mono" id="st-sun">↑ --:--  ↓ --:--</span><span class="stat-sub" id="st-sun-txt">—</span></div>
+
+      <div class="panel air-panel" id="air-panel">
+        <div class="air-head">
+          <span class="stat-label">ATMÓSFERA · CALIDAD DEL AIRE</span>
+          <span class="air-aqi mono" id="air-aqi">AQI --</span>
+        </div>
+        <div class="air-grid">
+          <div class="air-cell"><span class="air-num" id="air-dust">--</span><span class="air-unit">µg/m³</span><span class="air-name">POLVO SAHARA</span></div>
+          <div class="air-cell"><span class="air-num" id="air-pm10">--</span><span class="air-unit">µg/m³</span><span class="air-name">PM10</span></div>
+          <div class="air-cell"><span class="air-num" id="air-pm25">--</span><span class="air-unit">µg/m³</span><span class="air-name">PM2.5</span></div>
+        </div>
+        <div class="air-alert" id="air-alert" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ PRONÓSTICO ══════════ -->
+  <section class="view" id="view-forecast">
+    <div class="panel chart-panel">
+      <div class="panel-title">PRÓXIMAS 48 HORAS</div>
+      <div class="chart-scroll"><svg id="hourly-chart" width="1440" height="240"></svg></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">PRÓXIMOS 14 DÍAS</div>
+      <div class="days-grid" id="days-grid"></div>
+    </div>
+  </section>
+
+  <!-- ══════════ SISMOS ══════════ -->
+  <section class="view" id="view-quakes">
+    <div class="quakes-layout">
+      <div class="quakes-side">
+        <div class="panel qfilters">
+          <div class="panel-title">FILTROS</div>
+          <div class="chip-row" id="q-period">
+            <button class="chip" data-p="hour">1 HORA</button>
+            <button class="chip active" data-p="day">24 HORAS</button>
+            <button class="chip" data-p="week">7 DÍAS</button>
+          </div>
+          <div class="chip-row" id="q-mag">
+            <button class="chip active" data-m="0">TODOS</button>
+            <button class="chip" data-m="2.5">M2.5+</button>
+            <button class="chip" data-m="4">M4+</button>
+            <button class="chip" data-m="5.5">M5.5+</button>
+          </div>
+        </div>
+        <div class="panel qalarm">
+          <div class="panel-title">ALARMA SÍSMICA</div>
+          <label class="switch-row"><input type="checkbox" id="alarm-on" checked><span>Activada</span></label>
+          <label class="range-row"><span>Radio: <b id="alarm-km-val">300</b> km</span><input type="range" id="alarm-km" min="50" max="1000" step="50" value="300"></label>
+          <label class="range-row"><span>Magnitud mínima: <b id="alarm-mag-val">3.0</b></span><input type="range" id="alarm-mag" min="1" max="7" step="0.5" value="3"></label>
+          <button type="button" class="btn-test" id="btn-test-quake">▶ SIMULAR SISMO DE PRUEBA</button>
+        </div>
+        <div class="panel qlist-panel">
+          <div class="panel-title">ÚLTIMOS SISMOS <span class="mono qcount" id="q-count"></span></div>
+          <div class="qlist" id="q-list"><div class="loading">Cargando sismos…</div></div>
+        </div>
+      </div>
+      <div class="panel map-panel">
+        <div id="quake-map" class="map"></div>
+        <div class="map-scanline" aria-hidden="true"></div>
+        <div class="qdetail" id="q-detail" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ CICLONES ══════════ -->
+  <section class="view" id="view-storms">
+    <div class="storms-layout">
+      <div class="storms-side">
+        <div class="panel">
+          <div class="panel-title">ATLÁNTICO / CARIBE</div>
+          <div id="storm-list"><div class="loading">Consultando al NHC…</div></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">CAPAS</div>
+          <label class="switch-row"><input type="checkbox" id="layer-radar" checked><span>Radar de lluvia (última hora)</span></label>
+          <label class="switch-row"><input type="checkbox" id="layer-clouds"><span>Nubes (satélite IR)</span></label>
+          <div class="radar-time mono" id="radar-time"></div>
+        </div>
+      </div>
+      <div class="panel map-panel">
+        <div id="storm-map" class="map"></div>
+        <div class="map-scanline" aria-hidden="true"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ NOTICIAS ══════════ -->
+  <section class="view" id="view-news">
+    <div class="panel">
+      <div class="panel-title">NOTICIAS · CLIMA Y SISMOS</div>
+      <div class="chip-row" id="news-filter">
+        <button class="chip active" data-tag="*">TODAS</button>
+        <button class="chip" data-tag="RD">RD</button>
+        <button class="chip" data-tag="Caribe">CARIBE</button>
+        <button class="chip" data-tag="Atmósfera">ATMÓSFERA</button>
+        <button class="chip" data-tag="Mundo">MUNDO</button>
+      </div>
+      <div class="news-list" id="news-list"><div class="loading">Buscando noticias…</div></div>
+    </div>
+  </section>
+
+  <!-- ══════════ ALERTAS ══════════ -->
+  <section class="view" id="view-alerts">
+    <div class="panel">
+      <div class="panel-title">ALERTAS ACTIVAS</div>
+      <div id="alerts-active"><div class="empty-note">Sin alertas activas. Todo en calma. ✦</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">HISTORIAL DE LA SESIÓN</div>
+      <div id="alerts-history"><div class="empty-note">Aún no se ha registrado ninguna alerta.</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">NOTIFICACIONES</div>
+      <p class="note-text">Para recibir avisos del navegador aunque estés en otra pestaña, activa los permisos:</p>
+      <button type="button" class="btn-test" id="btn-notif">ACTIVAR NOTIFICACIONES</button>
+      <span class="mono" id="notif-state"></span>
+    </div>
+  </section>
+
+</main>
+
+<!-- ══════════ LECTOR DE NOTICIAS ══════════ -->
+<div class="reader-overlay" id="reader" hidden>
+  <div class="reader-panel" role="dialog" aria-label="Lector de noticias">
+    <button type="button" class="reader-close" id="reader-close" title="Cerrar (Esc)">✕</button>
+    <div class="reader-scroll" id="reader-body">
+      <div class="loading">Cargando artículo…</div>
+    </div>
+  </div>
+</div>
+
+<footer class="foot mono">TIMENOW v1.0 · DATOS: OPEN-METEO · USGS · NOAA/NHC · RAINVIEWER · GOOGLE NEWS</footer>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="js/app.js"></script>
+<script src="js/weather.js"></script>
+<script src="js/air.js"></script>
+<script src="js/quakes.js"></script>
+<script src="js/storms.js"></script>
+<script src="js/news.js"></script>
+<script src="js/alerts.js"></script>
+<script>TN.init();</script>
+</body>
+</html>
