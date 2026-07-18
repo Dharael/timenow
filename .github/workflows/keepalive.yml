@@ -1,0 +1,16 @@
+name: Mantener TimeNow despierta
+
+# Visita la app cada 10 minutos para que el plan Free de Render
+# no la duerma (evita el "Not Found"/espera de ~50s al despertar).
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Visitar la app
+        run: |
+          curl -s -o /dev/null -w "TimeNow respondio HTTP %{http_code}\n" --max-time 80 https://timenow-umzk.onrender.com/ || true
