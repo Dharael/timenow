@@ -372,6 +372,16 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
+/* Keep-alive en Render (plan Free): el servicio se auto-visita cada 10 min
+   a traves de su URL publica para que Render no lo duerma por inactividad.
+   RENDER_EXTERNAL_URL solo existe en Render, asi que en local no hace nada. */
+if (process.env.RENDER_EXTERNAL_URL) {
+  setInterval(() => {
+    https.get(process.env.RENDER_EXTERNAL_URL, (res) => res.resume())
+      .on('error', () => {});
+  }, 10 * 60 * 1000);
+}
+
 server.listen(PORT, () => {
   console.log('');
   console.log('  ╔══════════════════════════════════════════╗');
