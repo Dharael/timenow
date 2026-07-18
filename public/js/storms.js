@@ -127,16 +127,20 @@ TN.storms = (function () {
     });
   }
 
-  /* ── Radar RainViewer ── */
+  /* ── Radar RainViewer ──
+     Todas las capas de la animación se crean UNA vez (precargando sus
+     tiles) y solo se alterna la opacidad: sin parcheos ni parpadeos.
+     Antes se destruía/creaba una capa por frame cada 0.9s y los tiles
+     a medio cargar se veían "bugueados". */
+  var radarLayers = [];
+
   function loadRadarCatalog() {
     TN.api('/api/rainviewer').then(function (d) {
       radarHost = d.host || 'https://tilecache.rainviewer.com';
-      radarFrames = (d.radar && d.radar.past) ? d.radar.past.slice(-8) : [];
+      radarFrames = (d.radar && d.radar.past) ? d.radar.past.slice(-7) : [];
       if (d.radar && d.radar.nowcast && d.radar.nowcast.length) {
         radarFrames = radarFrames.concat(d.radar.nowcast.slice(0, 2));
       }
-      window.TN_cloudFrame = (d.satellite && d.satellite.infrared && d.satellite.infrared.length)
-        ? d.satellite.infrared[d.satellite.infrared.length - 1] : null;
       if (TN.$('layer-radar').checked) startRadar();
     }).catch(function (e) { console.error('rainviewer', e); });
   }
@@ -145,13 +149,7 @@ TN.storms = (function () {
     return radarHost + frame.path + '/256/{z}/{x}/{y}/2/1_1.png';
   }
 
-  function showRadarFrame(i) {
-    if (!map || !radarFrames.length) return;
-    const frame = radarFrames[i];
-    const url = radarUrl(frame);
-    const old = radarLayer;
-    radarLayer = L.tileLayer(url, { opacity: 0.75, zIndex: 200 }).addTo(map);
-    if (old) setTimeout(function () { map.removeLayer(old); }, 220);
+  function radarLabel(frame) {
     const dt = new Date(frame.time * 1000);
     TN.$('radar-time').textContent = 'RADAR: ' + dt.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' }) +
       (frame.path.indexOf('nowcast') >= 0 ? ' (pronóstico)' : '');
@@ -159,30 +157,50 @@ TN.storms = (function () {
 
   function startRadar() {
     stopRadar();
+    if (!map) return;
     if (!radarFrames.length) { loadRadarCatalog(); return; }
+    radarLayers = radarFrames.map(function (f) {
+      return L.tileLayer(radarUrl(f), { opacity: 0, zIndex: 200 }).addTo(map);
+    });
     radarIdx = 0;
-    showRadarFrame(radarIdx);
+    radarLayers[0].setOpacity(0.75);
+    radarLabel(radarFrames[0]);
     radarTimer = setInterval(function () {
-      radarIdx = (radarIdx + 1) % radarFrames.length;
-      showRadarFrame(radarIdx);
-    }, 900);
+      const prev = radarIdx;
+      radarIdx = (radarIdx + 1) % radarLayers.length;
+      radarLayers[prev].setOpacity(0);
+      radarLayers[radarIdx].setOpacity(0.75);
+      radarLabel(radarFrames[radarIdx]);
+    }, 1200);
   }
 
   function stopRadar() {
     if (radarTimer) { clearInterval(radarTimer); radarTimer = null; }
+    for (var i = 0; i < radarLayers.length; i++) {
+      if (map) map.removeLayer(radarLayers[i]);
+    }
+    radarLayers = [];
     if (radarLayer && map) { map.removeLayer(radarLayer); radarLayer = null; }
     TN.$('radar-time').textContent = '';
   }
 
-  /* ── Nubes IR ── */
+  /* ── Nubes: satélite GOES-East (NASA GIBS) ──
+     RainViewer eliminó su capa de satélite (el catálogo llega vacío),
+     por eso "Nubes" no mostraba nada. GIBS con time=default entrega
+     siempre la imagen más reciente disponible, sin API key. */
   function addClouds() {
-    if (!map || !window.TN_cloudFrame) return;
-    cloudLayer = L.tileLayer(radarHost + window.TN_cloudFrame.path + '/256/{z}/{x}/{y}/0/0_0.png', {
-      opacity: 0.55, zIndex: 150
-    }).addTo(map);
+    if (!map) return;
+    cloudLayer = L.tileLayer(
+      'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GOES-East_ABI_GeoColor/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png',
+      { opacity: 0.7, zIndex: 150, maxNativeZoom: 7, maxZoom: 18, attribution: 'NASA GIBS · GOES-East' }
+    ).addTo(map);
+    if (!TN.$('layer-radar').checked) {
+      TN.$('radar-time').textContent = 'NUBES: satélite GOES-East (NASA), imagen más reciente';
+    }
   }
   function removeClouds() {
     if (cloudLayer && map) { map.removeLayer(cloudLayer); cloudLayer = null; }
+    if (!TN.$('layer-radar').checked) TN.$('radar-time').textContent = '';
   }
 
   // refresco del estado cada 15 min
